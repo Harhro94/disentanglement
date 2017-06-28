@@ -29,7 +29,8 @@ Reconstruction:  ('recon' argument in SuperModel call)
 Encoder Regularization:
 
 -ci_reg (remember to specify minsyn = 'gaussian' or 'binary', gaussian used by default to match continuous NN activations)
-
+    -check Gaussian (adding noise to get probabilities => large CI)
+    
 -information_dropout
 
 Decoder Regularization:
