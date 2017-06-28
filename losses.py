@@ -190,7 +190,7 @@ def gaussian_cond_ent(x_true, z, invert_sigmoid = False, subtract_log_det = Fals
 	vi = K.expand_dims(K.var(x, axis=0)+EPS, 0)  # sigma_i^2
 	V = div_n(K.dot(K.transpose(z-K.transpose(mj)), x- mi)) #jxi
 	rho = V / K.sqrt(vi*vj)
-	cond_var = vi - tf.divide(rho**2, vj)
+	cond_var = vi - tf.divide(V**2, vj)
 	ent = .5*(1.+np.log(2 * np.pi) + K.log(cond_var+EPS))
 	ent = ent - log_det_jac if subtract_log_det else ent
 	return ent
