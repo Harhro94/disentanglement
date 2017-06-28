@@ -3,11 +3,6 @@
 This code allows us to create NN architectures using Keras and apply various information theoretic regularizations which may encourage 'disentangled' or 'non-synergistic' representations.
 
 MODEL OPTIONS are specified using models.py:
--Args (training parameters such as epochs, batch_size, optimizer)
--EncoderArgs (encoder architecture / loss)
-  e.g. e = EncoderArgs(latent_dim, info_dropout = True, activation = 'softplus')
--DecoderArgs (decoder architecture / loss)
-=======
 
 -Args (training parameters such as epochs, batch_size, optimizer)
 
