@@ -4,7 +4,8 @@ This code allows us to create NN architectures using Keras and apply various inf
 
 MODEL OPTIONS are specified using models.py:
 
--Args (training parameters such as epochs, batch_size, optimizer)
+-Args (training parameters such as epochs, batch_size, optimizer) (fed thru command line in my example)
+
 
 -EncoderArgs (encoder architecture / loss)
 
