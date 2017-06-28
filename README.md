@@ -15,7 +15,7 @@ MODEL OPTIONS are specified using models.py:
   e.g. d = DecoderArgs(minsyn = 'binary', ci_reg = True, activation = 'softplus', initializer = 'orthogonal')
        d = DecoderArgs(reversed(latent_dim[:-1]), screening = True) (final layer of original dimension automatically added)
 
-These objects are fed to SuperModel, which sets the architecture, fits, and runs visualization. See run.py for examples
+These objects are fed to SuperModel, which sets the architecture, fits, and runs visualization. See run.py for how to call models, along with some example regularization parameters
 
 
 LOSS FUNCTION OPTIONS in losses.py:
