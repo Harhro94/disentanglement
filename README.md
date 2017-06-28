@@ -30,3 +30,12 @@ Decoder Regularization:
 -information_dropout*
 -ci_wms (WMS / -TC under the CI decoder)*
 *not fully tested
+
+
+Dependencies (all for 3-letter-MNIST, all but enchant are for obtaining the dataset) 
+enchant 
+urllib
+shutil
+struct
+gzip
+zipfile
