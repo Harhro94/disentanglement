@@ -58,7 +58,7 @@ def gaussian_ci(ci_R, log_noise = None):
 		return K.mean(ci) #should be sum, but too big!s
 	return my_loss
 
-#SHOULD BE OBSOLETE
+# SHOULD BE OBSOLETE
 def sigmoid_ci(x, merged_decode):
 	# assumes both merged_decode are continuous (e.g. nn activations vs. gaussian z_ci).  approximate CI using binary formula
 	batch, n = merged_decode.get_shape()
@@ -132,12 +132,12 @@ def screening(n = 784, alpha=100, skew = True, kurt = True):
 		x_decode = merged_decode[:, :n]
 		z = merged_decode[:, n:]
 
-		h_xi_zj = gaussian_cond_ent(x_true, z) # NOW this is a conditional entropy not MI
+		h_xi_zj = gaussian_cond_ent(x_true, z, invert_sigmoid = False, subtract_log_det = False) # NOW this is a conditional entropy not MI
 		#mi_ji = gaussian_mi(x_true, z) # prev
 
 		#OLD calculation of h(Xi - g(Z)) term within screening loss
 		#xi_entropy_est = error_entropy(x_true, 0, skew = skew, kurt = kurt)
-		h_xi_z = error_entropy(x_true, x_decode, invert_sigmoid = True, subtract_log_det=False, skew = skew, kurt = kurt)
+		h_xi_z = error_entropy(x_true, x_decode, invert_sigmoid = False, subtract_log_det = False, skew = skew, kurt = kurt)
 		
 		# TAKING MIN using smooth min (-alpha)
 		min_xi_zj = tf.divide(K.sum(tf.multiply(h_xi_zj, K.exp(-alpha*h_xi_zj)), axis = 0), K.sum(K.exp(-alpha*h_xi_zj), axis = 0))
@@ -167,13 +167,13 @@ def gaussian_mi(x, z): # returns j i matrix of I(X_i:Y_j)
 	return -.5*K.log(1-rho**2)#j i
 
 
-def gaussian_cond_ent(x_, z, invert_sigmoid = True, binary_z = False): # returns m x n matrix of I(Y_j:X_i)
-	batch_size = K.cast(K.shape(x_)[0], x_.dtype)  
+def gaussian_cond_ent(x_true, z, invert_sigmoid = False, subtract_log_det = False, binary_z = False): # returns m x n matrix of I(Y_j:X_i)
+	batch_size = K.cast(K.shape(x_true)[0], x_true.dtype)  
 	div_n = Lambda(lambda v: v / batch_size)  
-	size = K.cast(K.shape(x_)[1], dtype='int32')
+	size = K.cast(K.shape(x_true)[1], dtype='int32')
 
 	if invert_sigmoid:
-		x = K.clip(x_, EPS, 1-EPS)
+		x = K.clip(x_true, EPS, 1-EPS)
 		log_det_jac = -K.mean(K.log(K.clip(tf.multiply(x, 1-x), EPS, 1-EPS)))
 		x = K.log(x) - K.log(1-x)
 		if binary_z:
@@ -181,6 +181,7 @@ def gaussian_cond_ent(x_, z, invert_sigmoid = True, binary_z = False): # returns
 			z = K.log(z) - K.log(1-z)
 			# z is likely continuous, but invert sigmoid if binary		
 	else:
+		x = x_true
 		log_det_jac = 0
 
 	mi = K.expand_dims(K.mean(x, axis=0), 0)  # mean of x_i
@@ -190,7 +191,9 @@ def gaussian_cond_ent(x_, z, invert_sigmoid = True, binary_z = False): # returns
 	V = div_n(K.dot(K.transpose(z-K.transpose(mj)), x- mi)) #jxi
 	rho = V / K.sqrt(vi*vj)
 	cond_var = vi - tf.divide(V**2, vj)
-	return .5*(1.+np.log(2 * np.pi) + K.log(cond_var+EPS)) #- log_det_jac
+	ent = .5*(1.+np.log(2 * np.pi) + K.log(cond_var+EPS))
+	ent = ent - log_det_jac if subtract_log_det else ent
+	return ent
 	#return -.5*K.log(K.clip(1-rho**2, epsilon, 1-epsilon) )+ .5*(1.+np.log(2 * np.pi)+K.log(K.clip(vi, epsilon, 1-epsilon)))
 
 

@@ -53,7 +53,7 @@ elif dataset == 'mnist':
 
 
 
-for strategy in ['ci_reg_enc']:
+for strategy in ['screening']:
 
 	"""
 	NOTE: Some models use objectives.binary_crossentropy, some use losses.error_entropy for recon
