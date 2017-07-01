@@ -22,7 +22,7 @@ import argparse
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--n_epoch', type=int, default=100)
-parser.add_argument('--args.latent_dim', type=list, default=[12])
+parser.add_argument('--latent_dim', type=list, default=[12])
 parser.add_argument('--batch_size', type=int, default=128)
 parser.add_argument('--momentum', type=float, default=0.0, help="param for minsyn layer models")
 parser.add_argument('--betas', type=list, default=[])
@@ -57,7 +57,7 @@ for args.strategy in ['screening']:
 	NOTE: Some models use objectives.binary_crossentropy, some use losses.error_entropy for recon
 	"""
 	if args.strategy == 'fully_connected':
-		f = Args(epochs = args.n_epoch, batch_size = batch_size, lagr_mult = args.betas, anneal_sched = args.sched, 
+		f = Args(epochs = args.n_epoch, batch_size = args.batch_size, lagr_mult = args.betas, anneal_sched = args.sched, 
 					optimizer = optimizer, momentum = args.momentum, original_dim = x_train.shape[1])
 		e = EncoderArgs(args.latent_dim, activation = 'softplus')
 		d = DecoderArgs(list(reversed(args.latent_dim[:-1])))
@@ -66,7 +66,7 @@ for args.strategy in ['screening']:
 		mymodel.fit(x_train, x_test)
 
 	if args.strategy == 'minsyn_decoder':
-		f = Args(epochs = args.n_epoch, batch_size = batch_size, lagr_mult = args.betas, anneal_sched = args.sched, 
+		f = Args(epochs = args.n_epoch, batch_size = args.batch_size, lagr_mult = args.betas, anneal_sched = args.sched, 
 					optimizer = optimizer, momentum = args.momentum, original_dim = x_train.shape[1])
 		e = EncoderArgs(args.latent_dim, activation = 'softplus', initializer = 'orthogonal')
 		d = DecoderArgs(initializer = 'orthogonal', minsyn = 'binary')
@@ -77,7 +77,7 @@ for args.strategy in ['screening']:
 	if args.strategy == 'info_dropout_ci_reg':
 		args.betas = [0.0, 10**-5, 10**-4]
 		args.sched = [0, 20, 80]
-		f = Args(epochs = args.n_epoch, batch_size = batch_size, lagr_mult = args.betas, anneal_sched = args.sched, 
+		f = Args(epochs = args.n_epoch, batch_size = args.batch_size, lagr_mult = args.betas, anneal_sched = args.sched, 
 					optimizer = optimizer, momentum = args.momentum, original_dim = x_train.shape[1])
 		e = EncoderArgs(args.latent_dim, info_dropout = True, ci_reg = True)
 		d = DecoderArgs(list(reversed(args.latent_dim[:-1]))) #
@@ -93,7 +93,7 @@ for args.strategy in ['screening']:
 			args.betas = [0.0, 10**-5, 10**-4, 10**-3]
 			args.sched = [0, 10, 50, 100]
 		
-		f = Args(epochs = args.n_epoch, batch_size = batch_size, lagr_mult = args.betas, anneal_sched = args.sched, 
+		f = Args(epochs = args.n_epoch, batch_size = args.batch_size, lagr_mult = args.betas, anneal_sched = args.sched, 
 						optimizer = optimizer, momentum = args.momentum, original_dim = x_train.shape[1])
 		e = EncoderArgs(args.latent_dim, activation = 'softplus', minsyn = 'gaussian', ci_reg = True)
 		d = DecoderArgs(list(reversed(args.latent_dim[:-1])))
@@ -107,7 +107,7 @@ for args.strategy in ['screening']:
 		args.betas = [10**-5, 10**-4, 10**-3]
 		#betas = [10*x for x in betas]
 		args.sched = [0, 20, 80]
-		f = Args(epochs = args.n_epoch, batch_size = batch_size, lagr_mult = args.betas, anneal_sched = args.sched, 
+		f = Args(epochs = args.n_epoch, batch_size = args.batch_size, lagr_mult = args.betas, anneal_sched = args.sched, 
 						optimizer = optimizer, momentum = args.momentum, original_dim = x_train.shape[1])
 		#e = EncoderArgs(args.latent_dim, info_dropout = True)
 		e = EncoderArgs(args.latent_dim, activation = 'softplus', initializer = 'orthogonal')
@@ -120,7 +120,7 @@ for args.strategy in ['screening']:
 	if args.strategy == 'screening':
 		args.betas = [0.25, .5, .9]
 		args.sched = [0, 10, 20]
-		f = Args(epochs = args.n_epoch, batch_size = batch_size, lagr_mult = args.betas, anneal_sched = args.sched, 
+		f = Args(epochs = args.n_epoch, batch_size = args.batch_size, lagr_mult = args.betas, anneal_sched = args.sched, 
 					optimizer = optimizer, momentum = args.momentum, original_dim = x_train.shape[1])
 		e = EncoderArgs(args.latent_dim, activation = 'softplus')
 		d = DecoderArgs(screening_alpha = 10, screening = True)
@@ -133,7 +133,7 @@ for args.strategy in ['screening']:
 		args.betas = [10**-5, 10**-3, 10**-2]
 		args.sched = [0, 20, 80]
 
-		f = Args(epochs = args.n_epoch, batch_size = batch_size, lagr_mult = args.betas, anneal_sched = args.sched, 
+		f = Args(epochs = args.n_epoch, batch_size = args.batch_size, lagr_mult = args.betas, anneal_sched = args.sched, 
 					optimizer = optimizer, momentum = args.momentum, original_dim = x_train.shape[1])
 		e = EncoderArgs(args.latent_dim, info_dropout = True)
 		d = DecoderArgs()
@@ -143,7 +143,7 @@ for args.strategy in ['screening']:
 
 	if args.strategy == 'ci_wms':
 		args.betas = 10**-4
-		f = Args(epochs = args.n_epoch, batch_size = batch_size, lagr_mult = args.betas, anneal_sched = args.sched, 
+		f = Args(epochs = args.n_epoch, batch_size = args.batch_size, lagr_mult = args.betas, anneal_sched = args.sched, 
 						optimizer = optimizer, momentum = args.momentum, original_dim = x_train.shape[1])
 		e = EncoderArgs(args.latent_dim, activation = 'softplus')
 		d = DecoderArgs(minsyn='binary', ci_wms = True)
