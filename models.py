@@ -24,15 +24,16 @@ class Args:
 		self.epochs = epochs
 		self.batch = batch_size
 
+                self.lagr_mult = lagr_mult
 		if isinstance(lagr_mult, list):
-			self.lagr_mult = lagr_mult
 			self.lagr = 1 if self.lagr_mult == [] else lagr_mult[0]
-		else:
-			self.lagr_mult = lagr_mult
+                elif isinstance(lagr_mult, dict):
+                        pass #treat once loss functions added
+		else: # single value
 			self.lagr = lagr_mult
 
 		self.anneal_sched = False if anneal_sched == [] else anneal_sched
-		if self.anneal_sched and (len(self.anneal_sched) != len(self.lagr_mult)):
+		if isinstance(lagr_mult, list) and self.anneal_sched and (len(self.anneal_sched) != len(self.lagr_mult)):
 			raise ValueError('Lagrange Multipliers and Annealing Schedule lists must be same length')
 
 		self.optimizer = optimizer
@@ -54,7 +55,7 @@ class EncoderArgs:
 	info_dropout = True:  add multiplicative noise layer and KL error term (I(X:Y) joint regularization)
 	ci_wms : WORK IN PROGRESS
 	"""
-	def __init__(self, latent_dim, minsyn = False, info_dropout = False, ci_reg = False, ci_wms = False, 
+	def __init__(self, latent_dim, minsyn = False, info_dropout = False, ci_reg = False, ci_wms = False, add_noise = False,
 				activation = 'softplus', initializer = 'glorot_uniform'):
 					# gaussian = False, binary = False, 
 					# minsyn = False, ci_reg = False, 
@@ -72,6 +73,37 @@ class EncoderArgs:
 		self.final_activation = self.activation
 		self.initializer = initializer
 		self.ci_wms = ci_wms
+		self.add_noise = add_noise
+                
+        def set_architecture():
+                passed_layers = {}
+                if self.info_dropout:
+			z_enc = ms.dense_k(x, self.latent_dim[:-1], activation = 'softplus', initializer = self.initializer, leave_last = True)
+			z_mean = Dense(self.latent_dim[-1], activation = self.final_activation, init = self.initializer, name='z_mean')(z_enc)
+			# To do : tune initializer to start with low noise?
+			z_log_noise = Dense(self.latent_dim[-1], activation = 'softplus', init = 'zero', name = 'z_log_noise')(z_mean)
+			z = Lambda(ms.sample_info_dropout, name = 'z_activation')([z_mean, z_log_noise])
+			info_dropout_loss = merge([z_log_noise, z], name = 'info_dropout', mode='concat', concat_axis=-1)
+                        passed_layers['info_dropout'] = info_dropout_loss
+                        passed_layers['z_log_noise'] = z_log_noise
+		#elif self.encoder.minsyn:
+		#NOTE: minsyn encoder doesn't really make sense without a way of encoding y (info dropout or dense) (i.e. no direct minsyn encoder)
+		
+		elif self.ci_reg and not (self.minsyn == 'binary'): #or self.encoder.gaussian_noise:
+			# single layer noise f(z): CI = D_KL(p(yj|x)...) => need probability around gaussian mean f_j(x) (NN activation)
+			z_enc = ms.dense_k(x, self.latent_dim[:-1], activation = self.activation, initializer = self.initializer, leave_last = True)
+			z_mean = Dense(self.latent_dim[-1], activation= self.activation, name='z_m')(z_enc)
+                        z_log_noise = Dense(self.latent_dim[-1], activation = self.activation, init = 'zero', name='z_log_noise')(z_enc)
+                        if self.add_noise: 
+                                z = Lambda(ms.sample_vae, name='z_activation')([z_mean, z_log_noise])
+                        else:
+                                z = Lambda(ms.identity_layer, name='z_activation')(z_mean)
+                        passed_layers['z_log_noise'] = z_log_noise
+		else:
+			z = ms.dense_k(x, self.encoder.latent_dim, activation = self.encoder.final_activation, initializer = self.encoder.initializer)
+		passed_layers['z_activation'] = z
+                return passed_layers
+                
 
 
 """
@@ -83,7 +115,7 @@ Decoder specific arguments:
 """
 class DecoderArgs:
 	def __init__(self, latent_dim = [], minsyn = False, info_dropout = False, ci_reg = False, ci_wms = False, screening = False, screening_mi = False, 
-					activation = 'softplus', initializer = 'glorot_uniform', screening_alpha = 1000):
+					activation = 'softplus', initializer = 'glorot_uniform', screening_alpha = 1000, original_dim = 784):
 		"""
 		ci_reg = True:  add regularization for NN network decoder divergence from CI (xi|y)
 		minsyn = 'binary' or 'gaussian' (please specify alongside ci_reg, or, ALONE = minsyn decoder)
@@ -104,7 +136,72 @@ class DecoderArgs:
 		self.alpha = screening_alpha
 		self.ci_wms = ci_wms
 		self.screening_mi = screening_mi
+                self.original_dim = original_dim
 
+        def set_architecture():
+                #fully connected layers
+		if len(self.latent_dim) > 0:
+			self.latent_dim.append(self.original_dim)
+			decoders = ms.dense_k(z, self.latent_dim[:-1], activation = self.activation, initializer = self.initializer, decoder = True)
+			x_decode = Dense(self.original_dim, activation = self.final_activation, init = self.initializer, name ='decoder')(decoders)
+		else:
+			x_decode = Dense(self.original_dim, activation = self.final_activation, init = self.initializer, name ='decoder')(z)
+
+		# DECODER OPTIONS
+		if self.ci_reg or self.minsyn:
+
+			merged_vector = merge([z, x], mode='concat', concat_axis=-1)
+			if self.minsyn == 'gaussian':
+	  			ci_decode = ms.DecodeGaussian(self.original_dim, name='decoder_ci')(merged_vector)
+			else:
+				ci_decode = ms.DecodeSigmoidFull(self.original_dim, name='decoder_ci')(merged_vector)
+			
+
+			if self.decoder.ci_reg: # x_decode (fully connected) is our decoder, loss function = recon + ci_reg
+				merged_decode = merge([x_decode, ci_decode], mode = 'concat', name ='ci_decoder_reg', concat_axis = -1)
+
+				#self.loss_function['decoder'] = self.recon
+				#self.outputs.append(x_decode)
+
+				if self.minsyn == 'gaussian':
+					# return r option makes output of minsyn layer = variances
+					ri = ms.DecodeGaussian(self.latent_dim[-1], return_r = True, name = 'r')(merged_vector)
+					self.loss_function['ci_decoder_reg'] = losses.gaussian_ci(ri, z_log_noise)
+				else:
+					self.loss_function['ci_decoder_reg'] = losses.binary_ci
+				self.outputs.append(merged_decode)
+			else: # minsyn decoder
+				self.loss_function['decoder_ci'] = self.recon
+				self.outputs.append(ci_decode)
+			
+				if self.decoder.ci_wms :
+					self.loss_function['z_activation'] = losses.ci_wms_dec(batch = self.args.batch)
+					self.outputs.append(z)
+
+
+		elif self.decoder.screening:			
+			if self.decoder.minsyn and not self.decoder.ci_reg: # minsyn decoder
+				merged_screen = merge([ci_decode, z], mode = 'concat', name = 'screening', concat_axis = -1)
+			else: # full decoder
+				merged_screen = merge([x_decode, z], mode = 'concat', name = 'screening', concat_axis = -1)
+			self.loss_function['decoder'] = self.recon
+			self.outputs.append(x_decode)
+			self.loss_function['screening'] = losses.screening(self.args.original_dim, self.decoder.alpha) 
+			self.outputs.append(merged_screen)
+
+		else:
+			self.loss_function['decoder'] = self.recon
+			self.outputs.append(x_decode)
+
+		if self.decoder.info_dropout: #UNTESTED: info dropout for learning noise to add to reconstruction
+			# To do : initializer to start with low noise?
+			xi_log_noise = Dense(self.encoder.latent_dim[-1], activation = 'softplus', init = 'zero', name = 'xi_log_noise')(x_decode if (not self.decoder.minsyn or self.decoder.ci_reg) else ci_decode)
+			xi_out = Lambda(ms.sample_info_dropout, name = 'z_activation')([x_decode if (not self.decoder.minsyn or self.decoder.ci_reg) else ci_decode, z_log_noise])
+			
+			info_dropout_loss = merge([xi_log_noise, xi_out], name = 'info_dropout', mode='concat', concat_axis=-1)
+			
+			self.loss_function['info_dropout'] = losses.info_dropout_kl(self.args.batch)
+			self.outputs.append(info_dropout_loss)
 
 
 class SuperModel:
