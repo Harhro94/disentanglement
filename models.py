@@ -1,5 +1,6 @@
 import sys
 import minsyn_layers as ms
+sys.path.insert(0, 'utils/')
 import utilities
 import numpy as np
 import tensorflow as tf
@@ -24,11 +25,11 @@ class Args:
 		self.epochs = epochs
 		self.batch = batch_size
 
-                self.lagr_mult = lagr_mult
+		self.lagr_mult = lagr_mult
 		if isinstance(lagr_mult, list):
 			self.lagr = 1 if self.lagr_mult == [] else lagr_mult[0]
-                elif isinstance(lagr_mult, dict):
-                        pass #treat once loss functions added
+		elif isinstance(lagr_mult, dict):
+			pass #treat once loss functions added
 		else: # single value
 			self.lagr = lagr_mult
 
@@ -55,8 +56,8 @@ class EncoderArgs:
 	info_dropout = True:  add multiplicative noise layer and KL error term (I(X:Y) joint regularization)
 	ci_wms : WORK IN PROGRESS
 	"""
-	def __init__(self, latent_dim, minsyn = False, info_dropout = False, ci_reg = False, ci_wms = False, add_noise = False,
-				ci_data_marginals = True, activation = 'softplus', initializer = 'glorot_uniform'):
+	def __init__(self, latent_dim, minsyn = False, info_dropout = False, ci_reg = False, ci_q = False, add_noise = False,
+				use_data_marginals = True, activation = 'softplus', initializer = 'glorot_uniform'):
 					# gaussian = False, binary = False, 
 					# minsyn = False, ci_reg = False, 
 					# info_dropout = False,
@@ -68,67 +69,67 @@ class EncoderArgs:
 		self.minsyn = minsyn
 		self.info_dropout = info_dropout
 		self.ci_reg = ci_reg
+		self.ci_q = ci_q
 		self.activation = activation
 		# change if we need latent layer to be [0,1] rather than continuous
-		self.final_activation = self.activation
+		self.final_activation = 'sigmoid' if (ci_reg and minsyn == 'binary') else self.activation
 		self.initializer = initializer
-		self.ci_wms = ci_wms
 		self.add_noise = add_noise
-		self.ci_data_marginals = ci_data_marginals
-                
-        def set_architecture(self):
-                self.passed_layers = {}
-                if self.info_dropout:
+		self.use_data_marginals = use_data_marginals          
+	
+	def set_architecture(self):
+		self.passed_layers = {}
+
+		if self.info_dropout:
 			z_enc = ms.dense_k(x, self.latent_dim[:-1], activation = 'softplus', initializer = self.initializer, leave_last = True)
 			z_mean = Dense(self.latent_dim[-1], activation = self.final_activation, init = self.initializer, name='z_mean')(z_enc)
 			# To do : tune initializer to start with low noise?
 			z_log_noise = Dense(self.latent_dim[-1], activation = 'softplus', init = 'zero', name = 'z_log_noise')(z_mean)
 			z = Lambda(ms.sample_info_dropout, name = 'z_activation')([z_mean, z_log_noise])
-			info_dropout_loss = merge([z_log_noise, z], name = 'info_dropout', mode='concat', concat_axis=-1
-                        self.passed_layers['info_dropout'] = info_dropout_loss
-                        self.passed_layers['z_log_noise'] = z_log_noise
+			info_dropout_loss = merge([z_log_noise, z], name = 'info_dropout', mode='concat', concat_axis=-1)
+			self.passed_layers['info_dropout'] = info_dropout_loss
+			self.passed_layers['z_log_noise'] = z_log_noise
 		#elif self.encoder.minsyn:
 		#NOTE: minsyn encoder doesn't really make sense without a way of encoding y (info dropout or dense) (i.e. no direct minsyn encoder)
-		
+
 		elif self.ci_reg and not (self.minsyn == 'binary'): #or self.encoder.gaussian_noise:
 			# single layer noise f(z): CI = D_KL(p(yj|x)...) => need probability around gaussian mean f_j(x) (NN activation)
 			z_enc = ms.dense_k(x, self.latent_dim[:-1], activation = self.activation, initializer = self.initializer, leave_last = True)
 			z_mean = Dense(self.latent_dim[-1], activation= self.activation, name='z_m')(z_enc)
-                        z_log_noise = Dense(self.latent_dim[-1], activation = self.activation, init = 'zero', name='z_log_noise')(z_enc)
-                        if self.add_noise: 
-                                z = Lambda(ms.sample_vae, name='z_activation')([z_mean, z_log_noise])
-                        else:
-                                z = Lambda(ms.identity_layer, name='z_activation')(z_mean)
-                        self.passed_layers['z_log_noise'] = z_log_noise
+			z_log_noise = Dense(self.latent_dim[-1], activation = self.activation, init = 'zero', name='z_log_noise')(z_enc)
+			if self.add_noise: 
+					z = Lambda(ms.sample_vae, name='z_activation')([z_mean, z_log_noise])
+			else:
+					z = Lambda(ms.identity_layer, name='z_activation')(z_mean)
+			self.passed_layers['z_log_noise'] = z_log_noise
 		else:
 			z = ms.dense_k(x, self.encoder.latent_dim, activation = self.encoder.final_activation, initializer = self.encoder.initializer)
 		self.passed_layers['z_activation'] = z
 
 
-                if self.ci_reg and self.ci_data_marginals:
-			#if self.encoder.ci_q: 
-			#merged_vector = merge([x_decode, z], mode='concat', name = 'ci_q', concat_axis=-1)
-			#else:
+		if self.ci_reg and self.use_data_marginals:
+			merged_vector = merge([x, z], mode='concat', name = 'ci_q', concat_axis=-1)
 
-                        merged_vector = merge([x, z], mode='concat', name = 'merged', concat_axis=-1)
-			
 			if self.minsyn == 'binary':  #ENSURE OUTPUT OF Z IS [0,1] (i.e. final_activation = sigmoid)
-				z_ci = ms.DecodeB2B(self.encoder.latent_dim[-1], name = 'encoder_ci', momentum = self.args.momentum)(merged_vector)
+				z_ci = ms.DecodeB2B(self.encoder.latent_dim[-1], name = 'encoder_ci')(merged_vector)
 			else:
 				if self.encoder.ci_q:
 					z_ci = ms.DecodeGaussianBeta(self.latent_dim[-1], name='encoder_ci')(merged_vector)
 					bj = ms.DecodeGaussianBeta(self.latent_dim[-1], return_betas = True, name = 'b')(merged_vector)
-                                        self.passed_layers['b'] = bj
+					self.passed_layers['b'] = bj
 				else: #compares with continuous encoder output
-					z_ci = ms.DecodeGaussian(self.encoder.latent_dim[-1], name = 'encoder_ci', momentum = self.args.momentum)(merged_vector)
+					z_ci = ms.DecodeGaussian(self.encoder.latent_dim[-1], name = 'encoder_ci')(merged_vector)
 					# return r option makes output of minsyn layer = variances
-				rj = ms.DecodeGaussian(self.encoder.latent_dim[-1], return_r = True, name = 'r', momentum = self.args.momentum)(merged_vector)
-                                self.passed_layers['r'] = rj
-                                
-                        self.passed_layers['encoder_ci'] = z_ci
-                                                  
-                return self.passed_layers
-                
+				rj = ms.DecodeGaussian(self.encoder.latent_dim[-1], return_r = True, name = 'r')(merged_vector)
+				self.passed_layers['r'] = rj
+								
+			self.passed_layers['encoder_ci'] = z_ci
+
+			if self.ci_q:
+					self.passed_layers['ci_q'] = merged_vector
+											  
+		return self.passed_layers
+			
 
 
 """
@@ -161,10 +162,10 @@ class DecoderArgs:
 		self.alpha = screening_alpha
 		self.ci_wms = ci_wms
 		self.screening_mi = screening_mi
-                self.original_dim = original_dim
+		self.original_dim = original_dim
 
-        def set_architecture(self):
-                #fully connected layers
+	def set_architecture(self):
+		#fully connected layers
 		if len(self.latent_dim) > 0:
 			self.latent_dim.append(self.original_dim)
 			decoders = ms.dense_k(z, self.latent_dim[:-1], activation = self.activation, initializer = self.initializer, decoder = True)
@@ -176,7 +177,7 @@ class DecoderArgs:
 		if self.ci_reg or self.minsyn:
 			merged_vector = merge([z, x], mode='concat', concat_axis=-1)
 			if self.minsyn == 'gaussian':
-	  			ci_decode = ms.DecodeGaussian(self.original_dim, name='decoder_ci')(merged_vector)
+				ci_decode = ms.DecodeGaussian(self.original_dim, name='decoder_ci')(merged_vector)
 			else:
 				ci_decode = ms.DecodeSigmoidFull(self.original_dim, name='decoder_ci')(merged_vector)
 			
@@ -187,32 +188,32 @@ class DecoderArgs:
 				if self.minsyn == 'gaussian':
 					# return r option makes output of minsyn layer = variances for ci decoder
 					ri = ms.DecodeGaussian(self.latent_dim[-1], return_r = True, name = 'r')(merged_vector)
-                                        self.passed_layers['r'] = ri
+					self.passed_layers['r'] = ri
 
 				self.passed_layers['ci_decoder_reg'] = merged_decode
 				
 			else: # minsyn decoder only
-                                self.passed_layers['decoder'] = ci_decode
+				self.passed_layers['decoder_ci'] = ci_decode
 			
 		elif self.screening:			
 			if self.minsyn and not self.ci_reg: # minsyn decoder
 				merged_screen = merge([ci_decode, z], mode = 'concat', name = 'screening', concat_axis = -1)
 			else: # full decoder
 				merged_screen = merge([x_decode, z], mode = 'concat', name = 'screening', concat_axis = -1)
-                        self.passed_layers['screening'] = merged_screen
-                        
-                if self.info_dropout: #UNTESTED: info dropout for learning noise to add to reconstruction
+				self.passed_layers['screening'] = merged_screen
+						
+		if self.info_dropout: #UNTESTED: info dropout for learning noise to add to reconstruction
 			# To do : initializer to start with low noise?
 			xi_log_noise = Dense(self.original_dim, activation = 'softplus', init = 'zero', name = 'xi_log_noise')(x_decode if (not self.minsyn or self.ci_reg) else ci_decode)
-			xi_out = Lambda(ms.sample_info_dropout, name = 'xi_out')([x_decode if (not self.minsyn or self.ci_reg) else ci_decode, z_log_noise])
+			xi_out = Lambda(ms.sample_info_dropout, name = 'decoder_id')([x_decode if (not self.minsyn or self.ci_reg) else ci_decode, z_log_noise])
 			info_dropout_loss = merge([xi_log_noise, xi_out], name = 'info_dropout', mode='concat', concat_axis=-1)
-                        self.passed_layers['info_dropout'] = info_dropout_loss
-                        self.passed_layers['decoder'] = xi_out #for easy identification as decoder
+			self.passed_layers['info_dropout'] = info_dropout_loss
+			self.passed_layers['decode_id'] = xi_out #for easy identification as decoder
 
-                if (self.minsyn and not self.ci_reg) and not self.info_dropout:
-                        self.passed_layers['decoder'] = x_decode
+		if (self.minsyn and not self.ci_reg) and not self.info_dropout:
+				self.passed_layers['decoder'] = x_decode
 
-                
+				
 class SuperModel:
 	"""
 		Initially meant to be a Super class, but now sets model architecture according to Encoder / Decoder args
@@ -255,57 +256,94 @@ class SuperModel:
 		self.outputs = []
 		self.recon_weight = recon_weight
 
-		self.prepare_model():
-		self.set_architecture()
+		self.prepare_model()
+		#self.set_architecture()
 		print self.model.summary()
 
-        def prepare_model(self):
-                self.encoder_layers = self.encoder.set_architecture()
-                self.decoder_layers = self.decoder.set_architecture()                                                  
-                self.set_losses()
-                                                  
-        def set_losses(self):
+	def prepare_model(self):
+		x = Input(shape=(self.args.original_dim,)) 
+		
+		self.inputs = []
+		inputs = self.num_losses+1 if self.num_losses == 0 else self.num_losses
+		for i in range(1): #inputs):
+			self.inputs.append(x)
+												  
+		self.encoder_layers = self.encoder.set_architecture()
+		self.decoder_layers = self.decoder.set_architecture()                                                  
+		self.set_losses()
+
+		self.num_losses = len(self.loss_function)
+		if self.num_losses != len(self.outputs):
+			print '**** LOSS FUNCTION AND OUTPUTS NOT SAME LENGTH ****'
+		
+		self.model = Model(input = self.inputs[0], output = self.outputs)
+																  
+	def set_losses(self):
+		# RECON (+ info dropout)
+		if self.decoder.minsyn and not self.decoder.ci_reg:
+				self.losses['decoder_ci'] = self.recon
+				self.outputs.append(self.decoder_layers['decoder_ci'])
+
+		elif self.decoder.info_dropout:
+				self.losses['decoder_id'] = self.recon
+				self.outputs.append(self.decoder_layers['decoder_id'])
+				self.losses['info_dropout'] = losses.info_dropout_kl(self.args.batch, min_noise = True)
+				self.outputs.append(self.decoder_layers['info_dropout'])
+
+		else:
+				self.losses['decoder'] = self.recon
+				self.outputs.append(self.decoder_layers['decoder'])
+
+		# DECODER REGULARIZATION
+		if self.decoder.ci_reg:
+				# default to binary_ci with unspecified minsyn
+				self.losses['ci_decoder_reg'] = losses.binary_ci if not self.decoder.minsyn == 'gaussian' else losses.gaussian_ci(self.decoder_layers['r'], self.encoder_layers['z_log_noise'])
+				self.outputs.append(self.decoder_layers['ci_decoder_reg'])
+		if self.decoder.ci_wms:
+				self.losses['z_activation'] = losses.ci_dec_wms(batch = self.args.batch)
+		if self.decoder.ci_q:
+				raise NotImplementedError
+		if self.decoder.screening:
+				self.loss_function['screening'] = losses.screening(self.args.original_dim, self.decoder.alpha) 
+				self.outputs.append(self.decoder_layers['screening'])
+
+		# ENCODER REGULARIZATION
+		if self.encoder.ci_reg:
+			if not self.encoder.use_data_marginals:
+				merged_vector = merge([self.decoder_layers['decoder'], self.encoder_layers['z_activation']], mode='concat', name = 'ci_q', concat_axis=-1)
+
+				if self.minsyn == 'binary':  #ENSURE OUTPUT OF Z IS [0,1] (i.e. final_activation = sigmoid)
+						z_ci = ms.DecodeB2B(self.encoder.latent_dim[-1], name = 'encoder_ci', momentum = self.args.momentum)(merged_vector)
+				else:
+					if self.encoder.ci_q:
+						z_ci = ms.DecodeGaussianBeta(self.latent_dim[-1], name='encoder_ci')(merged_vector)
+						bj = ms.DecodeGaussianBeta(self.latent_dim[-1], return_betas = True, name = 'b')(merged_vector)
+						self.encoder_layers['b'] = bj
+					else: #compares with continuous encoder output
+						z_ci = ms.DecodeGaussian(self.encoder.latent_dim[-1], name = 'encoder_ci', momentum = self.args.momentum)(merged_vector)
+					# return r option makes output of minsyn layer = variances
+					rj = ms.DecodeGaussian(self.encoder.latent_dim[-1], return_r = True, name = 'r', momentum = self.args.momentum)(merged_vector)
+					self.encoder_layers['r'] = rj
+				self.encoder_layers['ci_q'] = merged_vector
+
+			encoder_ci_loss = merge([self.encoder_layers['z_activation'], self.encoder_layers['z_ci']], mode = 'concat', name ='ci_encoder_reg', concat_axis=-1)
+			self.outputs.append(encoder_ci_loss)
+
+			if self.encoder.minsyn == 'gaussian':
+				self.loss_function['ci_encoder_reg'] = losses.gaussian_ci(self.encoder_layers['r'], self.encoder_layers['z_log_noise'])                              
+			else:
+				self.loss_function['ci_encoder_reg'] = losses.binary_ci
+
+			if self.encoder.ci_q:
+				self.loss_function['ci_q'] = losses.ci_q_constraint(self.encoder_layers['b'], self.encoder.latent_dim[-1])
+				self.outputs.append(self.encoder_layers['ci_q'])
 
 
-                        if self.ci_reg: # x_decode (fully connected) is our decoder, loss function = recon + ci_reg
-				#merged_decode = merge([x_decode, ci_decode], mode = 'concat', name ='ci_decoder_reg', concat_axis = -1)
-
-				#self.loss_function['decoder'] = self.recon
-				#self.outputs.append(x_decode)
-
-				if self.minsyn == 'gaussian':
-					#self.loss_function['ci_decoder_reg'] = losses.gaussian_ci(ri, z_log_noise)
-                                else:
-                                        #self.loss_function['ci_decoder_reg'] = losses.binary_ci
-
-				self.passed_layers['ci_decoder_reg'] = merged_decode
-				#self.outputs.append(merged_decode)
-			else: # minsyn decoder
-                                self.passed_layers['decoder_ci'] = ci_decode
-				#self.loss_function['decoder_ci'] = self.recon
-				#self.outputs.append(ci_decode)
-                        #if self.ci_wms :
-				#self.loss_function['z_activation'] = losses.ci_wms_dec(batch = self.args.batch)
-				#self.outputs.append(z)
-
-                
-			#self.loss_function['decoder'] = self.recon
-			#self.outputs.append(x_decode)
-
-                        #screening
-			self.loss_function['screening'] = losses.screening(self.args.original_dim, self.decoder.alpha) 
-			self.outputs.append(merged_screen)
-
-                        if self.decoder.info_dropout:
-			self.loss_function['info_dropout'] = losses.info_dropout_kl(self.args.batch, min_noise = True)
-                        self.loss_function['xi_out'] = self.recon
-
-                        if self.ci_q:
-                        self.outputs.append(merged_vector)
-                        self.loss_function['ci_q'] = losses.ci_q_constraint(bj, self.encoder.latent_dim[-1])
-
-                        #self.loss_function['ci_encoder_reg'] = losses.gaussian_ci(rj, z_log_noise) if not self.encoder.minsyn == 'binary' else losses.binary_ci
-        
+		if self.encoder.info_dropout:
+				self.loss_function['info_dropout'] = losses.info_dropout_kl(self.args.batch)
+				self.outputs.append(self.encoder_layers['info_dropout'])
+														  
+	
 	def set_architecture(self):
 		"""
 			Creates layers and adds loss functions based on options specified
@@ -357,7 +395,7 @@ class SuperModel:
 
 			merged_vector = merge([z, x], mode='concat', concat_axis=-1)
 			if self.decoder.minsyn == 'gaussian':
-	  			ci_decode = ms.DecodeGaussian(self.args.original_dim, name='decoder_ci', momentum = self.args.momentum)(merged_vector)
+				ci_decode = ms.DecodeGaussian(self.args.original_dim, name='decoder_ci', momentum = self.args.momentum)(merged_vector)
 			else:
 				ci_decode = ms.DecodeSigmoidFull(self.args.original_dim, name='decoder_ci', momentum = self.args.momentum)(merged_vector)
 			
