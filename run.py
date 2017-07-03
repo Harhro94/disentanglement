@@ -22,16 +22,17 @@ import argparse
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--n_epoch', type=int, default=100)
-parser.add_argument('--latent_dim', type=list, default=[12])
+parser.add_argument('--latent_dim', type=int, nargs='+', default=[12])
 parser.add_argument('--batch_size', type=int, default=128)
 parser.add_argument('--momentum', type=float, default=0.0, help="param for minsyn layer models")
-parser.add_argument('--betas', type=list, default=[])
-parser.add_argument('--sched', type=list, default=[], help="param for fit(data, optimizer)")
+parser.add_argument('--betas', type=float, nargs='+', default=[])
+parser.add_argument('--sched', type=int, nargs='+', default=[], help="param for fit(data, optimizer)")
 parser.add_argument('--dataset', type=str, default='emnist')
 parser.add_argument('--strategy', type=str, default='fully_connected')
 args = parser.parse_args()
+print args
 
-optimizer = Adam(lr=0.0001)
+optimizer = Adam(lr=0.0001, beta_1=0.5)
 
 
 # IF USING EMNIST, DETERMINE WHICH LETTERS CAN APPEAR IN EACH POSITION
@@ -51,14 +52,13 @@ elif args.dataset == 'mnist':
 	x_train, x_test, y_train, y_test = utilities.mnist_data()
 
 
-for args.strategy in ['screening']:
+for args.strategy in ['fully_connected']:
 
 	"""
 	NOTE: Some models use objectives.binary_crossentropy, some use losses.error_entropy for recon
 	"""
 	if args.strategy == 'fully_connected':
-		f = Args(epochs = args.n_epoch, batch_size = args.batch_size, lagr_mult = args.betas, anneal_sched = args.sched, 
-					optimizer = optimizer, momentum = args.momentum, original_dim = x_train.shape[1])
+		f = Args(epochs = args.n_epoch, batch_size = args.batch_size, lagr_mult = args.betas, anneal_sched = args.sched, optimizer = optimizer, momentum = args.momentum, original_dim = x_train.shape[1])
 		e = EncoderArgs(args.latent_dim, activation = 'softplus')
 		d = DecoderArgs(list(reversed(args.latent_dim[:-1])), original_dim = x_train.shape[1])
 		#losses.error_entropy, objectives.binary_crossentropy
@@ -149,5 +149,4 @@ for args.strategy in ['screening']:
 		d = DecoderArgs(minsyn='binary', ci_wms = True, original_dim = x_train.shape[1])
 		meamodel = SuperModel(strategy = args.strategy, encoder = e, decoder = d, args = f, recon = objectives.binary_crossentropy,  recon_weight = 1)
 		meamodel.fit(x_train, x_test)
-
 
