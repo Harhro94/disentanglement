@@ -60,7 +60,7 @@ for args.strategy in ['screening']:
 		f = Args(epochs = args.n_epoch, batch_size = args.batch_size, lagr_mult = args.betas, anneal_sched = args.sched, 
 					optimizer = optimizer, momentum = args.momentum, original_dim = x_train.shape[1])
 		e = EncoderArgs(args.latent_dim, activation = 'softplus')
-		d = DecoderArgs(list(reversed(args.latent_dim[:-1])))
+		d = DecoderArgs(list(reversed(args.latent_dim[:-1])), original_dim = x_train.shape[1])
 		#losses.error_entropy, objectives.binary_crossentropy
 		mymodel = SuperModel(strategy = args.strategy, encoder = e, decoder = d, args = f, recon =  objectives.binary_crossentropy,  recon_weight = 1)
 		mymodel.fit(x_train, x_test)
@@ -69,7 +69,7 @@ for args.strategy in ['screening']:
 		f = Args(epochs = args.n_epoch, batch_size = args.batch_size, lagr_mult = args.betas, anneal_sched = args.sched, 
 					optimizer = optimizer, momentum = args.momentum, original_dim = x_train.shape[1])
 		e = EncoderArgs(args.latent_dim, activation = 'softplus', initializer = 'orthogonal')
-		d = DecoderArgs(initializer = 'orthogonal', minsyn = 'binary')
+		d = DecoderArgs(initializer = 'orthogonal', minsyn = 'binary', original_dim = x_train.shape[1])
 		mymodel = SuperModel(strategy = args.strategy, encoder = e, decoder = d, args = f, recon = objectives.binary_crossentropy,  recon_weight = 1)
 		mymodel.fit(x_train, x_test)
 
@@ -80,7 +80,7 @@ for args.strategy in ['screening']:
 		f = Args(epochs = args.n_epoch, batch_size = args.batch_size, lagr_mult = args.betas, anneal_sched = args.sched, 
 					optimizer = optimizer, momentum = args.momentum, original_dim = x_train.shape[1])
 		e = EncoderArgs(args.latent_dim, info_dropout = True, ci_reg = True)
-		d = DecoderArgs(list(reversed(args.latent_dim[:-1]))) #
+		d = DecoderArgs(list(reversed(args.latent_dim[:-1])), original_dim = x_train.shape[1]) #
 		model = SuperModel(strategy = args.strategy, encoder = e, decoder = d, args = f, recon = objectives.binary_crossentropy, recon_weight = 1)
 		model.fit(x_train, x_test)
 
@@ -96,7 +96,7 @@ for args.strategy in ['screening']:
 		f = Args(epochs = args.n_epoch, batch_size = args.batch_size, lagr_mult = args.betas, anneal_sched = args.sched, 
 						optimizer = optimizer, momentum = args.momentum, original_dim = x_train.shape[1])
 		e = EncoderArgs(args.latent_dim, activation = 'softplus', minsyn = 'gaussian', ci_reg = True)
-		d = DecoderArgs(list(reversed(args.latent_dim[:-1])))
+		d = DecoderArgs(list(reversed(args.latent_dim[:-1])), original_dim = x_train.shape[1])
 		model = SuperModel(strategy = args.strategy, encoder = e, decoder = d, args = f, recon = objectives.binary_crossentropy, recon_weight = 1)
 		model.fit(x_train, x_test)
 
@@ -111,7 +111,7 @@ for args.strategy in ['screening']:
 						optimizer = optimizer, momentum = args.momentum, original_dim = x_train.shape[1])
 		#e = EncoderArgs(args.latent_dim, info_dropout = True)
 		e = EncoderArgs(args.latent_dim, activation = 'softplus', initializer = 'orthogonal')
-		d = DecoderArgs(minsyn = 'binary', ci_reg = True, initializer = 'orthogonal')
+		d = DecoderArgs(minsyn = 'binary', ci_reg = True, initializer = 'orthogonal', original_dim = x_train.shape[1])
 		mimodel = SuperModel(strategy = 'ci_reg_decoder', encoder = e, decoder = d, args = f, recon = objectives.binary_crossentropy, recon_weight = 1)
 		mimodel.fit(x_train, x_test)
 
@@ -123,7 +123,7 @@ for args.strategy in ['screening']:
 		f = Args(epochs = args.n_epoch, batch_size = args.batch_size, lagr_mult = args.betas, anneal_sched = args.sched, 
 					optimizer = optimizer, momentum = args.momentum, original_dim = x_train.shape[1])
 		e = EncoderArgs(args.latent_dim, activation = 'softplus')
-		d = DecoderArgs(screening_alpha = 10, screening = True)
+		d = DecoderArgs(screening_alpha = 10, screening = True, original_dim = x_train.shape[1])
 		mymodel = SuperModel(strategy = args.strategy, encoder = e, decoder = d, args = f, recon = losses.error_entropy,  recon_weight = 1)
 		mymodel.fit(x_train, x_test)
 
@@ -136,7 +136,7 @@ for args.strategy in ['screening']:
 		f = Args(epochs = args.n_epoch, batch_size = args.batch_size, lagr_mult = args.betas, anneal_sched = args.sched, 
 					optimizer = optimizer, momentum = args.momentum, original_dim = x_train.shape[1])
 		e = EncoderArgs(args.latent_dim, info_dropout = True)
-		d = DecoderArgs()
+		d = DecoderArgs(original_dim = x_train.shape[1])
 		mymodel1 = SuperModel(strategy = 'dropout', encoder = e, decoder = d, args = f, recon = objectives.binary_crossentropy, recon_weight = 1)
 		mymodel1.fit(x_train, x_test)
 
@@ -146,7 +146,8 @@ for args.strategy in ['screening']:
 		f = Args(epochs = args.n_epoch, batch_size = args.batch_size, lagr_mult = args.betas, anneal_sched = args.sched, 
 						optimizer = optimizer, momentum = args.momentum, original_dim = x_train.shape[1])
 		e = EncoderArgs(args.latent_dim, activation = 'softplus')
-		d = DecoderArgs(minsyn='binary', ci_wms = True)
+		d = DecoderArgs(minsyn='binary', ci_wms = True, original_dim = x_train.shape[1])
 		meamodel = SuperModel(strategy = args.strategy, encoder = e, decoder = d, args = f, recon = objectives.binary_crossentropy,  recon_weight = 1)
 		meamodel.fit(x_train, x_test)
+
 
