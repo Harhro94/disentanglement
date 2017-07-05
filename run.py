@@ -32,7 +32,7 @@ parser.add_argument('--strategy', type=str, default='fully_connected')
 args = parser.parse_args()
 print args
 
-optimizer = Adam(lr=0.0001, beta_1=0.5)
+optimizer = Adam(lr=0.001, beta_1=0.5)
 
 
 # IF USING EMNIST, DETERMINE WHICH LETTERS CAN APPEAR IN EACH POSITION
@@ -59,7 +59,8 @@ f = Args(epochs = args.epochs, batch_size = args.batch_size, lagr_mult = args.be
 
 """
 NOTE: Some models use objectives.binary_crossentropy, some use losses.error_entropy for recon
-some losses: losses.error_entropy, objectives.binary_crossentropy, objectives.mean_squared_error
+some losses: losses.error_entropy, objectives.binary_crossentropy,
+			 objectives.mean_squared_error, losses.log_euclidean
 """
 
 super_model_strategy = args.strategy
@@ -67,7 +68,9 @@ super_model_strategy = args.strategy
 if args.strategy == 'fully_connected':
 	e = EncoderArgs(args.latent_dim, activation = 'softplus')
 	d = DecoderArgs(decoder_dim, original_dim = x_train.shape[1], activation='sigmoid')
-	recon = objectives.binary_crossentropy
+	#recon = objectives.binary_crossentropy
+	recon = objectives.mean_squared_error
+	#recon = losses.log_euclidean
 	recon_weight = 1
 
 
@@ -115,12 +118,15 @@ if args.strategy == 'ci_reg_dec':
 
 
 if args.strategy == 'screening':
-	args.betas = [0.25, .5, .9]
-	args.sched = [0, 10, 20]
+	#args.betas = [0.25, .5, .9]
+	#args.sched = [0, 10, 20]
 	e = EncoderArgs(args.latent_dim, activation = 'softplus')
-	d = DecoderArgs(screening_alpha = 10, screening = True, original_dim = x_train.shape[1])
-	recon = losses.error_entropy
-	recon_weight = 1
+	d = DecoderArgs(screening = True, original_dim = x_train.shape[1], activation = 'sigmoid')
+	#recon = losses.error_entropy
+	recon = losses.log_euclidean
+	#recon = objectives.mean_squared_error
+	#recon_weight = 1
+	recon_weight = 1 - args.betas[0]
 
 
 if args.strategy == 'info_dropout':
