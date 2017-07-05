@@ -18,20 +18,21 @@ import losses
 import string
 import models
 from models import Args, EncoderArgs, DecoderArgs, SuperModel
-#sys.argv = n_epoch, latent_dim, batch_size, momentum, betas, sched
+import argparse
 
-dataset = 'emnist'
+parser = argparse.ArgumentParser()
+parser.add_argument('--n_epoch', type=int, default=100)
+parser.add_argument('--latent_dim', type=int, nargs='+', default=[12])
+parser.add_argument('--batch_size', type=int, default=128)
+parser.add_argument('--momentum', type=float, default=0.0, help="param for minsyn layer models")
+parser.add_argument('--betas', type=float, nargs='+', default=[])
+parser.add_argument('--sched', type=int, nargs='+', default=[], help="param for fit(data, optimizer)")
+parser.add_argument('--dataset', type=str, default='emnist')
+parser.add_argument('--strategy', type=str, default='fully_connected')
+args = parser.parse_args()
+print args
 
-args = len(sys.argv)
-n_epoch = int(sys.argv[1]) if args > 1 else 100
-latent_dim = map(int, sys.argv[2].split(',')) if args > 2 else [12]
-batch_size = int(sys.argv[3]) if args > 3 else 128
-momentum = float(sys.argv[4]) if args > 4 else 0 #PARAM FOR MINSYN LAYER MODELS
-betas = map(float, sys.argv[5].split(',')) if args > 5 else []
-sched = map(int, sys.argv[6].split(',')) if args > 6 else []
- #PARAMETER FOR FIT(DATA, OPTIMIZER)
-
-optimizer = Adam(lr=0.0001)
+optimizer = Adam(lr=0.0001, beta_1=0.5)
 
 
 # IF USING EMNIST, DETERMINE WHICH LETTERS CAN APPEAR IN EACH POSITION
@@ -45,110 +46,107 @@ letters[2] = list(string.ascii_lowercase)
 #letters[2] = ['t','e','y','n','r','d','w','o','x','s','l','g','f','p','b','m']
 
 # GET DATA
-if dataset == 'emnist':
+if args.dataset == 'emnist':
 	x_train, x_test, y_train, y_test = utilities.get_emnist_lettercomb(letters)
-elif dataset == 'mnist':
+elif args.dataset == 'mnist':
 	x_train, x_test, y_train, y_test = utilities.mnist_data()
 
 
-
-
-for strategy in ['screening']:
+for args.strategy in ['fully_connected']:
 
 	"""
 	NOTE: Some models use objectives.binary_crossentropy, some use losses.error_entropy for recon
 	"""
-	if strategy == 'fully_connected':
-		f = Args(epochs = n_epoch, batch_size = batch_size, lagr_mult = betas, anneal_sched = sched, 
-					optimizer = optimizer, momentum = momentum, original_dim = x_train.shape[1])
-		e = EncoderArgs(latent_dim, activation = 'softplus')
-		d = DecoderArgs(list(reversed(latent_dim[:-1])), original_dim = x_train.shape[1])
+	if args.strategy == 'fully_connected':
+		f = Args(epochs = args.n_epoch, batch_size = args.batch_size, lagr_mult = args.betas, anneal_sched = args.sched, optimizer = optimizer, momentum = args.momentum, original_dim = x_train.shape[1])
+		e = EncoderArgs(args.latent_dim, activation = 'softplus')
+		d = DecoderArgs(list(reversed(args.latent_dim[:-1])), original_dim = x_train.shape[1])
 		#losses.error_entropy, objectives.binary_crossentropy
-		mymodel = SuperModel(strategy = strategy, encoder = e, decoder = d, args = f, recon =  objectives.binary_crossentropy,  recon_weight = 1)
+		mymodel = SuperModel(strategy = args.strategy, encoder = e, decoder = d, args = f, recon =  objectives.binary_crossentropy,  recon_weight = 1)
 		mymodel.fit(x_train, x_test)
 
-	if strategy == 'minsyn_decoder':
-		f = Args(epochs = n_epoch, batch_size = batch_size, lagr_mult = betas, anneal_sched = sched, 
-					optimizer = optimizer, momentum = momentum, original_dim = x_train.shape[1])
-		e = EncoderArgs(latent_dim, activation = 'softplus', initializer = 'orthogonal')
+	if args.strategy == 'minsyn_decoder':
+		f = Args(epochs = args.n_epoch, batch_size = args.batch_size, lagr_mult = args.betas, anneal_sched = args.sched, 
+					optimizer = optimizer, momentum = args.momentum, original_dim = x_train.shape[1])
+		e = EncoderArgs(args.latent_dim, activation = 'softplus', initializer = 'orthogonal')
 		d = DecoderArgs(initializer = 'orthogonal', minsyn = 'binary', original_dim = x_train.shape[1])
-		mymodel = SuperModel(strategy = strategy, encoder = e, decoder = d, args = f, recon = objectives.binary_crossentropy,  recon_weight = 1)
+		mymodel = SuperModel(strategy = args.strategy, encoder = e, decoder = d, args = f, recon = objectives.binary_crossentropy,  recon_weight = 1)
 		mymodel.fit(x_train, x_test)
 
 
-	if strategy == 'info_dropout_ci_reg':
-		betas = [0.0, 10**-5, 10**-4]
-		sched = [0, 20, 80]
-		f = Args(epochs = n_epoch, batch_size = batch_size, lagr_mult = betas, anneal_sched = sched, 
-					optimizer = optimizer, momentum = momentum, original_dim = x_train.shape[1])
-		e = EncoderArgs(latent_dim, info_dropout = True, ci_reg = True)
-		d = DecoderArgs(list(reversed(latent_dim[:-1])), original_dim = x_train.shape[1]) #
-		model = SuperModel(strategy = strategy, encoder = e, decoder = d, args = f, recon = objectives.binary_crossentropy, recon_weight = 1)
+	if args.strategy == 'info_dropout_ci_reg':
+		args.betas = [0.0, 10**-5, 10**-4]
+		args.sched = [0, 20, 80]
+		f = Args(epochs = args.n_epoch, batch_size = args.batch_size, lagr_mult = args.betas, anneal_sched = args.sched, 
+					optimizer = optimizer, momentum = args.momentum, original_dim = x_train.shape[1])
+		e = EncoderArgs(args.latent_dim, info_dropout = True, ci_reg = True)
+		d = DecoderArgs(list(reversed(args.latent_dim[:-1])), original_dim = x_train.shape[1]) #
+		model = SuperModel(strategy = args.strategy, encoder = e, decoder = d, args = f, recon = objectives.binary_crossentropy, recon_weight = 1)
 		model.fit(x_train, x_test)
 
 
-	if strategy == 'ci_reg_enc':
+	if args.strategy == 'ci_reg_enc':
 		if dataset == 'mnist':
-			betas = [10**-5, 10**-4]
-			sched = [0, 10]
+			args.betas = [10**-5, 10**-4]
+			args.sched = [0, 10]
 		else:
-			betas = [0.0, 10**-5, 10**-4, 10**-3]
-			sched = [0, 10, 50, 100]
+			args.betas = [0.0, 10**-5, 10**-4, 10**-3]
+			args.sched = [0, 10, 50, 100]
 		
-		f = Args(epochs = n_epoch, batch_size = batch_size, lagr_mult = betas, anneal_sched = sched, 
-						optimizer = optimizer, momentum = momentum, original_dim = x_train.shape[1])
-		e = EncoderArgs(latent_dim, activation = 'softplus', minsyn = 'gaussian', ci_reg = True)
-		d = DecoderArgs(list(reversed(latent_dim[:-1])),original_dim = x_train.shape[1])
-		model = SuperModel(strategy = strategy, encoder = e, decoder = d, args = f, recon = objectives.binary_crossentropy, recon_weight = 1)
+		f = Args(epochs = args.n_epoch, batch_size = args.batch_size, lagr_mult = args.betas, anneal_sched = args.sched, 
+						optimizer = optimizer, momentum = args.momentum, original_dim = x_train.shape[1])
+		e = EncoderArgs(args.latent_dim, activation = 'softplus', minsyn = 'gaussian', ci_reg = True)
+		d = DecoderArgs(list(reversed(args.latent_dim[:-1])), original_dim = x_train.shape[1])
+		model = SuperModel(strategy = args.strategy, encoder = e, decoder = d, args = f, recon = objectives.binary_crossentropy, recon_weight = 1)
 		model.fit(x_train, x_test)
 
 
 
-	if strategy == 'ci_reg_dec':
+	if args.strategy == 'ci_reg_dec':
 		#[10**-5, 10**-4], [0, 8]
-		betas = [10**-5, 10**-4, 10**-3]
+		args.betas = [10**-5, 10**-4, 10**-3]
 		#betas = [10*x for x in betas]
-		sched = [0, 20, 80]
-		f = Args(epochs = n_epoch, batch_size = batch_size, lagr_mult = betas, anneal_sched = sched, 
-						optimizer = optimizer, momentum = momentum, original_dim = x_train.shape[1])
-		#e = EncoderArgs(latent_dim, info_dropout = True)
-		e = EncoderArgs(latent_dim, activation = 'softplus', initializer = 'orthogonal')
+		args.sched = [0, 20, 80]
+		f = Args(epochs = args.n_epoch, batch_size = args.batch_size, lagr_mult = args.betas, anneal_sched = args.sched, 
+						optimizer = optimizer, momentum = args.momentum, original_dim = x_train.shape[1])
+		#e = EncoderArgs(args.latent_dim, info_dropout = True)
+		e = EncoderArgs(args.latent_dim, activation = 'softplus', initializer = 'orthogonal')
 		d = DecoderArgs(minsyn = 'binary', ci_reg = True, initializer = 'orthogonal', original_dim = x_train.shape[1])
 		mimodel = SuperModel(strategy = 'ci_reg_decoder', encoder = e, decoder = d, args = f, recon = objectives.binary_crossentropy, recon_weight = 1)
 		mimodel.fit(x_train, x_test)
 
 
 
-	if strategy == 'screening':
-		betas = [0.25, .5, .9]
-		sched = [0, 10, 20]
-		f = Args(epochs = n_epoch, batch_size = batch_size, lagr_mult = betas, anneal_sched = sched, 
-					optimizer = optimizer, momentum = momentum, original_dim = x_train.shape[1])
-		e = EncoderArgs(latent_dim, activation = 'softplus')
+	if args.strategy == 'screening':
+		args.betas = [0.25, .5, .9]
+		args.sched = [0, 10, 20]
+		f = Args(epochs = args.n_epoch, batch_size = args.batch_size, lagr_mult = args.betas, anneal_sched = args.sched, 
+					optimizer = optimizer, momentum = args.momentum, original_dim = x_train.shape[1])
+		e = EncoderArgs(args.latent_dim, activation = 'softplus')
 		d = DecoderArgs(screening_alpha = 10, screening = True, original_dim = x_train.shape[1])
-		mymodel = SuperModel(strategy = strategy, encoder = e, decoder = d, args = f, recon = losses.error_entropy,  recon_weight = 1)
+		mymodel = SuperModel(strategy = args.strategy, encoder = e, decoder = d, args = f, recon = losses.error_entropy,  recon_weight = 1)
 		mymodel.fit(x_train, x_test)
 
 
 
-	if strategy == 'info_dropout':
-		betas = [10**-5, 10**-3, 10**-2]
-		sched = [0, 20, 80]
+	if args.strategy == 'info_dropout':
+		args.betas = [10**-5, 10**-3, 10**-2]
+		args.sched = [0, 20, 80]
 
-		f = Args(epochs = n_epoch, batch_size = batch_size, lagr_mult = betas, anneal_sched = sched, 
-					optimizer = optimizer, momentum = momentum, original_dim = x_train.shape[1])
-		e = EncoderArgs(latent_dim, info_dropout = True)
+		f = Args(epochs = args.n_epoch, batch_size = args.batch_size, lagr_mult = args.betas, anneal_sched = args.sched, 
+					optimizer = optimizer, momentum = args.momentum, original_dim = x_train.shape[1])
+		e = EncoderArgs(args.latent_dim, info_dropout = True)
 		d = DecoderArgs(original_dim = x_train.shape[1])
 		mymodel1 = SuperModel(strategy = 'dropout', encoder = e, decoder = d, args = f, recon = objectives.binary_crossentropy, recon_weight = 1)
 		mymodel1.fit(x_train, x_test)
 
 
-	if strategy == 'ci_wms':
-		betas = 10**-4
-		f = Args(epochs = n_epoch, batch_size = batch_size, lagr_mult = betas, anneal_sched = sched, 
-						optimizer = optimizer, momentum = momentum, original_dim = x_train.shape[1])
-		e = EncoderArgs(latent_dim, activation = 'softplus')
+	if args.strategy == 'ci_wms':
+		args.betas = 10**-4
+		f = Args(epochs = args.n_epoch, batch_size = args.batch_size, lagr_mult = args.betas, anneal_sched = args.sched, 
+						optimizer = optimizer, momentum = args.momentum, original_dim = x_train.shape[1])
+		e = EncoderArgs(args.latent_dim, activation = 'softplus')
 		d = DecoderArgs(minsyn='binary', ci_wms = True, original_dim = x_train.shape[1])
-		meamodel = SuperModel(strategy = strategy, encoder = e, decoder = d, args = f, recon = objectives.binary_crossentropy,  recon_weight = 1)
+		meamodel = SuperModel(strategy = args.strategy, encoder = e, decoder = d, args = f, recon = objectives.binary_crossentropy,  recon_weight = 1)
 		meamodel.fit(x_train, x_test)
 
