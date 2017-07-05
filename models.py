@@ -11,7 +11,6 @@ from keras.callbacks import Callback, TensorBoard
 from keras.models import Model, Sequential
 from keras.optimizers import Adam, SGD
 from keras import objectives
-from keras import initializations
 from keras.layers.noise import GaussianNoise
 from keras.callbacks import Callback, TensorBoard
 from functools import partial, update_wrapper

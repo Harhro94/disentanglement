@@ -134,11 +134,17 @@ def screening(n = 784, alpha=10, skew = False, kurt = False):
 
 		#OLD calculation of h(Xi - g(Z)) term within screening loss
 		#xi_entropy_est = error_entropy(x_true, 0, skew = skew, kurt = kurt)
-		mi_xi_z = error_entropy(x_true, x_decode, invert_sigmoid = True, subtract_log_det=True, skew = skew, kurt = kurt)
+		#mi_xi_z = error_entropy(x_true, x_decode, invert_sigmoid = True, subtract_log_det=True, skew = skew, kurt = kurt)
+		
+		max_mi = K.pool2d(x=K.reshape(mi_ji, (1, 1, K.cast(z.shape[1], 'int32'), n)),
+						  pool_size=(z.shape[1], 1), strides=(1, 1),
+						  padding='valid',
+						  data_format='channels_first',
+						  pool_mode='max')
+		max_mi = K.reshape(max_mi, (n,))
 		
 		# TAKING MIN using smooth min (-alpha)
-		max_mi = tf.divide(K.sum(tf.multiply(mi_ji, K.exp(alpha*mi_ji)), axis = 0), K.sum(K.exp(alpha*mi_ji), axis = 0))
-
+		#max_mi = tf.divide(K.sum(tf.multiply(mi_ji, K.exp(alpha*mi_ji)), axis = 0), K.sum(K.exp(alpha*mi_ji), axis = 0))
 
 		return K.sum(mi_ji) - K.sum(max_mi)
 		#Alternatively, in models.fit(), update_loss_weights to set recon loss weight to 1-beta
