@@ -104,6 +104,16 @@ def error_entropy(x_true, x_decode, invert_sigmoid = False, subtract_log_det=Tru
 	return out
 
 
+def log_euclidean(x_true, x_decode):
+	""" Log euclidean loss function, used for screening
+		loss = sum_i {log(E[(x_i - y_i) ** 2])}
+	"""
+	eps = 1e-2 # NOTE: this is a big question ?
+
+	errors = K.log(K.mean((x_true - x_decode) ** 2, axis=0) + eps)
+	return K.sum(errors)
+
+
 def info_dropout_kl(batch = 256, min_noise = False): #ONLY SOFTPLUS IMPLEMENTED
     def my_loss(x, merged_decode):
 		b, n = merged_decode.get_shape()
@@ -122,7 +132,7 @@ def info_dropout_kl(batch = 256, min_noise = False): #ONLY SOFTPLUS IMPLEMENTED
     return my_loss
 
 
-def screening(n = 784, alpha=10, skew = False, kurt = False):
+def screening(n = 784, skew = False, kurt = False):
 	print 'LOSS FUNCTION: Screening'
 	def my_loss(x_true, merged_decode):
 		#batch, n = merged_decode.get_shape()
@@ -143,9 +153,6 @@ def screening(n = 784, alpha=10, skew = False, kurt = False):
 						  pool_mode='max')
 		max_mi = K.reshape(max_mi, (n,))
 		
-		# TAKING MIN using smooth min (-alpha)
-		#max_mi = tf.divide(K.sum(tf.multiply(mi_ji, K.exp(alpha*mi_ji)), axis = 0), K.sum(K.exp(alpha*mi_ji), axis = 0))
-
 		return K.sum(mi_ji) - K.sum(max_mi)
 		#Alternatively, in models.fit(), update_loss_weights to set recon loss weight to 1-beta
 	return my_loss
