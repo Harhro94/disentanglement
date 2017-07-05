@@ -46,6 +46,7 @@ letters[2] = list(string.ascii_lowercase)
 #letters[2] = ['t','e','y','n','r','d','w','o','x','s','l','g','f','p','b','m']
 
 # GET DATA
+print "==> loading the dataset"
 if args.dataset == 'emnist':
 	x_train, x_test, y_train, y_test = utilities.get_emnist_lettercomb(letters)
 elif args.dataset == 'mnist':
@@ -62,7 +63,7 @@ NOTE: Some models use objectives.binary_crossentropy, some use losses.error_entr
 some losses: losses.error_entropy, objectives.binary_crossentropy,
 			 objectives.mean_squared_error, losses.log_euclidean
 """
-
+print "==> building the model"
 super_model_strategy = args.strategy
 
 if args.strategy == 'fully_connected':

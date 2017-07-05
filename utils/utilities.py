@@ -212,6 +212,7 @@ noises = [('no noise', lambda x: x), ('bottom half', bottom_half), ('right half'
 
 
 def plot_loss(hist, prefix=""):
+    print "==> plotting loss function"
     plt.clf()
     plt.plot(hist.history['loss'], 'r', label='loss')
     plt.plot(hist.history['val_loss'], 'b',  label='val. loss')
@@ -226,6 +227,7 @@ def plot_loss(hist, prefix=""):
 
 
 def vis_all_weights(model, prefix='', dataset = 'mnist', encoder_weights = False, label = ' '):
+    print "==> visualize all weights"
     """Visualize encoder decoder weights at first layer."""
     w_dict = dict((w.name, w) for w in model.weights)
     #for k in w_dict:
@@ -443,6 +445,8 @@ def vis_weights(w, prefix, dim = 12, dataset = 'mnist', label = ''):
 
 
 def vis_reconstruction(model, data, prefix='', noise=None, n=8, dataset= 'mnist', merged = True, num_losses=1):
+    print "==> visualizing reconstructions, prefix = {}".format(prefix)
+
     digit_size = [0,0]
     if dataset == 'mnist':
         # n is number of digits to reconstruct.
