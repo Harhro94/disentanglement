@@ -136,11 +136,10 @@ Decoder specific arguments:
 - Architecture, Strategy (minsyn, info_dropout, ci_reg, screening)
 - NOTE: latent_dim not required.  reconstruction layer added to ALL models, so only specify additional intermediate layers
 - Layer activations and initializations 
-- screening alpha for smooth max param
 """
 class DecoderArgs:
 	def __init__(self, latent_dim = [], minsyn = False, info_dropout = False, ci_reg = False, ci_wms = False, screening = False, screening_mi = False, 
-					activation = 'softplus', initializer = 'glorot_uniform', screening_alpha = 1000, original_dim = 784):
+					activation = 'softplus', initializer = 'glorot_uniform', original_dim = 784):
 		"""
 		ci_reg = True:  add regularization for NN network decoder divergence from CI (xi|y)
 		minsyn = 'binary' or 'gaussian' (please specify alongside ci_reg, or, ALONE = minsyn decoder)
@@ -158,7 +157,6 @@ class DecoderArgs:
 		self.final_activation = self.activation
 		self.initializer = initializer
 		self.screening = screening
-		self.alpha = screening_alpha
 		self.ci_wms = ci_wms
 		self.screening_mi = screening_mi
 		self.original_dim = original_dim
@@ -306,7 +304,7 @@ class SuperModel:
 		#if self.decoder.ci_q:
 		#		raise NotImplementedError
 		if self.decoder.screening:
-				self.loss_function['screening'] = losses.screening(self.args.original_dim, self.decoder.alpha) 
+				self.loss_function['screening'] = losses.screening(self.args.original_dim)
 				self.outputs.append(self.decoder_layers['screening'])
 
 		# ENCODER REGULARIZATION
