@@ -108,7 +108,7 @@ def log_euclidean(x_true, x_decode):
 	""" Log euclidean loss function, used for screening
 		loss = sum_i {log(E[(x_i - y_i) ** 2])}
 	"""
-	eps = 1e-2 # NOTE: this is a big question ?
+	eps = 1e-2 # NOTE: this seem to be good, as the pixel precision in RGB is 10^-2 approximately
 
 	errors = K.log(K.mean((x_true - x_decode) ** 2, axis=0) + eps)
 	return K.sum(errors)
@@ -153,7 +153,7 @@ def screening(n = 784, skew = False, kurt = False):
 						  pool_mode='max')
 		max_mi = K.reshape(max_mi, (n,))
 		
-		return K.sum(mi_ji) - K.sum(max_mi)
+		return -K.sum(max_mi)
 		#Alternatively, in models.fit(), update_loss_weights to set recon loss weight to 1-beta
 	return my_loss
 
