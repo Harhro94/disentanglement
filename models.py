@@ -236,50 +236,32 @@ class SuperModel:
 		self.args = args
 		self.strategy = strategy
 		self.recon = [recon] if isinstance(recon, str) else recon
-		
-		
-		#necessary?
-		self.num_losses = 0
-		self.num_losses = self.num_losses+1 if self.encoder.info_dropout is True else self.num_losses
-		self.num_losses = self.num_losses+1 if self.decoder.info_dropout is True else self.num_losses
-		self.num_losses = self.num_losses+1 if self.encoder.ci_reg is True else self.num_losses
-		self.num_losses = self.num_losses+1 if self.decoder.ci_reg is True else self.num_losses
-		#self.num_losses = self.num_losses+1 if self.encoder.ci_wms is True else self.num_losses
-		self.num_losses = self.num_losses+1 if self.decoder.ci_wms is True else self.num_losses
-		self.num_losses = self.num_losses+1 if self.decoder.screening is True else self.num_losses
-
-		
-		self.loss_function = {}
-		self.loss_weights = [1]*self.num_losses
+		self.recon_weight = recon_weight
 
 		self.inputs = []
 		self.outputs = []
-		self.recon_weight = recon_weight
-
-		self.prepare_model()
-		#self.set_architecture()
-		print self.model.summary()
-
-	def prepare_model(self):
-		x = Input(shape=(self.args.original_dim,)) 
 		
-		self.inputs = []
-		inputs = self.num_losses+1 if self.num_losses == 0 else self.num_losses
-		for i in range(1): #inputs):
-			self.inputs.append(x)
-												  
+		# prepering the model
+		x = Input(shape=(self.args.original_dim,)) 
 		self.encoder_layers = self.encoder.set_architecture(x)
 		self.decoder_layers = self.decoder.set_architecture(x, self.encoder_layers['z_activation'])                                                  
 		self.set_losses()
 
 		self.num_losses = len(self.loss_function)
+		self.loss_weights = [1]*self.num_losses
+
 		if self.num_losses != len(self.outputs):
-			print '**** LOSS FUNCTION AND OUTPUTS NOT SAME LENGTH ****'
-		
-		self.model = Model(input = self.inputs[0], output = self.outputs)
+			raise Exception("**** LOSS FUNCTION AND OUTPUTS NOT SAME LENGTH ****")
+
+		self.model = Model(input = x, output = self.outputs)
+
+		print self.model.summary()
+
 																  
 	def set_losses(self):
-		# RECON (+ info dropout)
+		self.loss_function = {}
+
+		# RECON (+ info dropout)		
 		if self.decoder.minsyn and not self.decoder.ci_reg:
 				self.loss_function['decoder_ci'] = self.recon
 				self.outputs.append(self.decoder_layers['decoder_ci'])
@@ -549,6 +531,13 @@ class SuperModel:
 		utilities.vis_reconstruction(self.model, self.x_train[indices, :], prefix='{}train'.format(self.location), dataset = dataset, num_losses = 1) #self.num_losses)
 		indices = np.random.randint(0, self.x_val.shape[0]-1, self.args.batch)
 		utilities.vis_reconstruction(self.model, self.x_val[indices, :], prefix='{}test'.format(self.location), dataset = dataset, num_losses = 1)#self.num_losses)
+
+		import visualization as vs
+		
+		w_dict = dict((w.name, w) for w in self.model.weights)
+		decoder_W = K.get_value(w_dict['decoder/kernel:0'])
+		vs.plot_features(decoder_W.transpose((1, 0)), name="decoder.png")
+		vs.plot_features(decoder_W.transpose((1, 0)), shared_colorbar=False, name="decoder_notshared.png")
 
 
 	def set_lagr_mult(self, lagr_mult, anneal_sched = []):
