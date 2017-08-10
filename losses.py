@@ -109,9 +109,8 @@ def log_euclidean(x_true, x_decode):
 		loss = sum_i {log(E[(x_i - y_i) ** 2])}
 	"""
 	eps = 1e-2 # NOTE: this seem to be good, as the pixel precision in RGB is 10^-2 approximately
-
 	errors = K.log(K.mean((x_true - x_decode) ** 2, axis=0) + eps)
-	return K.sum(errors)
+	return 0.5 * K.sum(errors) # 0.5 is needed when pairing this loss with screening term
 
 
 def info_dropout_kl(batch = 256, min_noise = False): #ONLY SOFTPLUS IMPLEMENTED
@@ -134,28 +133,15 @@ def info_dropout_kl(batch = 256, min_noise = False): #ONLY SOFTPLUS IMPLEMENTED
 
 def screening(n = 784, skew = False, kurt = False):
 	print 'LOSS FUNCTION: Screening'
+
 	def my_loss(x_true, merged_decode):
-		#batch, n = merged_decode.get_shape()
-		x_decode = merged_decode[:, :n]
+                x_decode = merged_decode[:, :n]
 		z = merged_decode[:, n:]
-
-		#h_xi_zj = gaussian_cond_ent(x_true, z, invert_sigmoid = True, subtract_log_det =True) # NOW this is a conditional entropy not MI
-		mi_ji = gaussian_mi(x_true, z) # prev
-
-		#OLD calculation of h(Xi - g(Z)) term within screening loss
-		#xi_entropy_est = error_entropy(x_true, 0, skew = skew, kurt = kurt)
-		#mi_xi_z = error_entropy(x_true, x_decode, invert_sigmoid = True, subtract_log_det=True, skew = skew, kurt = kurt)
-		
-		max_mi = K.pool2d(x=K.reshape(mi_ji, (1, 1, K.cast(z.shape[1], 'int32'), n)),
-						  pool_size=(z.shape[1], 1), strides=(1, 1),
-						  padding='valid',
-						  data_format='channels_first',
-						  pool_mode='max')
-		max_mi = K.reshape(max_mi, (n,))
-		
+		mi_ji = gaussian_mi(x_true, z)
+		max_mi = K.max(mi_ji, axis=0)
 		return -K.sum(max_mi)
-		#Alternatively, in models.fit(), update_loss_weights to set recon loss weight to 1-beta
-	return my_loss
+
+        return my_loss
 
 
 def ci_q_constraint(betas, n = 784):

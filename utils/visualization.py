@@ -29,6 +29,9 @@ def plot_features(W, cmap=plt.cm.seismic, shared_colorbar=True, name='decoder.pn
     if cmap==plt.cm.seismic:
         mini = -np.max(np.abs(W))
         maxi = -mini
+
+        mini = -12
+        maxi = +12
     else:
         mini = np.min(W)
         maxi = np.max(W)
